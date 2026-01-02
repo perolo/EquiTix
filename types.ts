@@ -41,6 +41,7 @@ export interface Concert {
   launchDate: string;
   floorDate: string; // The date when donation is 0
   maxMultiplier: number; // e.g., 100 for 100x price
+  charityIds: string[]; // List of selected charity IDs for this specific concert
 }
 
 export interface PriceSnapshot {
@@ -78,4 +79,6 @@ export interface Purchase {
   donationAmount: number;
   purchaseDate: string;
   eventDate: string;
+  impactStory?: string;
+  charityNames?: string[];
 }

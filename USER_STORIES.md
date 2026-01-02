@@ -7,6 +7,8 @@
 - **Secure Vault:** As a buyer, I want my tickets stored in a secure digital vault with access to tax-deductible receipts.
 
 ## 🎤 Artist (Tour Manager)
+- **Performance Dashboard:** As an artist manager, I want to see a high-level overview of revenue, philanthropic impact, and ticket sales trends.
+- **Sales Metrics:** As an artist, I want a visual bar chart of sales velocity over the last 7 days to understand audience demand.
 - **Concert CRUD:** As an artist manager, I want to add new tour stops by selecting an arena and setting the concert and launch dates.
 - **Pricing Strategy:** As an artist, I want to set the `Max Multiplier` to determine how high the initial anti-scalper price starts.
 - **Monitoring:** As an artist, I want to manage my active tour dates and see the live impact of ticket donations.

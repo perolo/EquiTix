@@ -71,7 +71,8 @@ export const CONCERTS: Concert[] = [
     date: new Date(now.getTime() + 1000 * 60 * 60 * 24 * 45).toISOString(), // 45 days from now
     launchDate: launch.toISOString(),
     floorDate: new Date(now.getTime() + 1000 * 60 * 60 * 24 * 40).toISOString(), // Donation drops to 0 in 40 days
-    maxMultiplier: 100
+    maxMultiplier: 100,
+    charityIds: ['c1', 'c2']
   },
   {
     id: 'ev2',
@@ -80,6 +81,7 @@ export const CONCERTS: Concert[] = [
     date: new Date(now.getTime() + 1000 * 60 * 60 * 24 * 60).toISOString(),
     launchDate: launch.toISOString(),
     floorDate: new Date(now.getTime() + 1000 * 60 * 60 * 24 * 55).toISOString(),
-    maxMultiplier: 50
+    maxMultiplier: 50,
+    charityIds: ['c3']
   }
 ];

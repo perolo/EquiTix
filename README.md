@@ -34,3 +34,11 @@ Instead of allowing scalpers to capture the "market value" of popular tickets, E
 
 ---
 *EquiTix - Turning scalper profits into charitable impact.*
+
+## Documentation
+For deeper insights into the project specifications, user requirements, and technical design, please refer to the following documents:
+
+- [Requirement Specification](REQUIREMENTS.md)
+- [User Stories](USER_STORIES.md)
+- [Architectural Specification](ARCHITECTURE.md)
+- [Backend Services Specification](BACKEND_SERVICES.md)

@@ -1,11 +1,11 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Globe, Music, MapPin, Heart, ChevronRight, Bell, Receipt, History, User, Mail, Lock, Key, X, AlertCircle, CheckCircle, ShieldCheck, Ticket, LogOut, Plus, Trash2, Edit3, Settings, Calendar, Briefcase } from 'lucide-react';
+import { Search, Globe, Music, MapPin, Heart, ChevronRight, Bell, Receipt, History, User, Mail, Lock, Key, X, AlertCircle, CheckCircle, ShieldCheck, Ticket, LogOut, Plus, Trash2, Edit3, Settings, Calendar, Briefcase, TrendingUp, DollarSign, Users, Sparkles } from 'lucide-react';
 import { ARTISTS as INITIAL_ARTISTS, ARENAS as INITIAL_ARENAS, CONCERTS as INITIAL_CONCERTS } from './constants';
 import { Artist, Arena, Concert, Watcher, PriceSnapshot, ArenaSection, UserAccount, Purchase, UserCategory, CharityCause } from './types';
 import { calculateCurrentPrice, formatCurrency } from './utils/pricing';
 import { getImpactStory } from './services/geminiService';
-import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip } from 'recharts';
+import { ResponsiveContainer, AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, BarChart, Bar } from 'recharts';
 
 // --- Sub-components ---
 
@@ -99,15 +99,22 @@ const AuthModal: React.FC<{
         <button onClick={onClose} className="absolute right-6 top-6 text-gray-500 hover:text-white"><X size={24} /></button>
         <div className="text-center mb-8">
           <h2 className="text-2xl font-bold">{mode === 'login' ? 'Welcome Back' : 'Join EquiTix'}</h2>
+          <p className="text-gray-500 text-xs mt-2 italic">Anti-Scalper Ethical Ticketing</p>
         </div>
         {status && <div className={`mb-6 p-4 rounded-xl text-sm ${status.type === 'success' ? 'bg-green-500/10 text-green-400' : 'bg-red-500/10 text-red-400'}`}>{status.message}</div>}
         <form onSubmit={handleSubmit} className="space-y-4">
           {mode === 'signup' && (
             <input type="text" required placeholder="Full Name" className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 focus:ring-2 focus:ring-purple-500 outline-none" value={name} onChange={e => setName(e.target.value)} />
           )}
-          <input type="email" required placeholder="Email" className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 focus:ring-2 focus:ring-purple-500 outline-none" value={email} onChange={e => setEmail(e.target.value)} />
-          <input type="password" required placeholder="Password" className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 focus:ring-2 focus:ring-purple-500 outline-none" value={password} onChange={e => setPassword(e.target.value)} />
-          <button className="w-full py-3 bg-purple-600 hover:bg-purple-500 font-bold rounded-xl transition-all">{mode === 'login' ? 'Sign In' : 'Sign Up'}</button>
+          <div className="relative">
+            <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+            <input type="email" required placeholder="Email" className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-purple-500 outline-none" value={email} onChange={e => setEmail(e.target.value)} />
+          </div>
+          <div className="relative">
+            <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={16} />
+            <input type="password" required placeholder="Password" className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 focus:ring-2 focus:ring-purple-500 outline-none" value={password} onChange={e => setPassword(e.target.value)} />
+          </div>
+          <button className="w-full py-3 bg-purple-600 hover:bg-purple-500 font-bold rounded-xl transition-all shadow-lg shadow-purple-900/20">{mode === 'login' ? 'Sign In' : 'Sign Up'}</button>
         </form>
         <div className="mt-6 text-center">
           <button onClick={() => setMode(mode === 'login' ? 'signup' : 'login')} className="text-sm text-purple-400 hover:underline">{mode === 'login' ? 'Create an account' : 'Already have an account?'}</button>
@@ -124,6 +131,7 @@ export default function App() {
   const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null);
   const [selectedConcert, setSelectedConcert] = useState<Concert | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [isPurchasing, setIsPurchasing] = useState(false);
   
   // App States (Simulated DB)
   const [users, setUsers] = useState<UserAccount[]>([
@@ -138,6 +146,17 @@ export default function App() {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   const filteredArtists = useMemo(() => INITIAL_ARTISTS.filter(a => a.name.toLowerCase().includes(searchQuery.toLowerCase())), [searchQuery]);
+
+  // Performance Metrics (Mock Data)
+  const salesMetrics = useMemo(() => [
+    { day: 'Mon', tickets: 120, revenue: 45000 },
+    { day: 'Tue', tickets: 200, revenue: 78000 },
+    { day: 'Wed', tickets: 150, revenue: 56000 },
+    { day: 'Thu', tickets: 300, revenue: 110000 },
+    { day: 'Fri', tickets: 450, revenue: 180000 },
+    { day: 'Sat', tickets: 600, revenue: 250000 },
+    { day: 'Sun', tickets: 550, revenue: 220000 },
+  ], []);
 
   // Pricing visualization data helper
   const getPricingData = (concert: Concert) => {
@@ -158,33 +177,55 @@ export default function App() {
     return data;
   };
 
-  const handleBuy = (section: ArenaSection) => {
+  const handleBuy = async (section: ArenaSection) => {
     if (!currentUser) { setIsAuthModalOpen(true); return; }
     if (!selectedConcert) return;
-    const artist = INITIAL_ARTISTS.find(a => a.id === selectedConcert.artistId);
-    const arena = arenas.find(a => a.id === selectedConcert.arenaId);
-    const price = calculateCurrentPrice(section.basePrice, selectedConcert);
+    
+    setIsPurchasing(true);
+    try {
+      const artist = INITIAL_ARTISTS.find(a => a.id === selectedConcert.artistId);
+      const arena = arenas.find(a => a.id === selectedConcert.arenaId);
+      const price = calculateCurrentPrice(section.basePrice, selectedConcert);
 
-    setPurchases([{
-      id: `TIX-${Math.floor(Math.random() * 999999)}`,
-      userEmail: currentUser.email,
-      concertId: selectedConcert.id,
-      artistName: artist?.name || '',
-      arenaName: arena?.name || '',
-      sectionName: section.name,
-      totalPrice: price.total,
-      donationAmount: price.donation,
-      purchaseDate: new Date().toISOString(),
-      eventDate: selectedConcert.date
-    }, ...purchases]);
-    alert('Purchase confirmed!');
-    setView('profile');
+      // Get names of all selected charities for this concert
+      const concertCharities = artist?.charityCauses.filter(c => selectedConcert.charityIds.includes(c.id)) || [];
+      const charityNames = concertCharities.length > 0 ? concertCharities.map(c => c.name) : ["Global Relief Fund"];
+      
+      // Fetch impact story from Gemini (passing joined names)
+      const story = await getImpactStory(price.donation, charityNames.join(", "));
+
+      const newPurchase: Purchase = {
+        id: `TIX-${Math.floor(Math.random() * 999999)}`,
+        userEmail: currentUser.email,
+        concertId: selectedConcert.id,
+        artistName: artist?.name || '',
+        arenaName: arena?.name || '',
+        sectionName: section.name,
+        totalPrice: price.total,
+        donationAmount: price.donation,
+        purchaseDate: new Date().toISOString(),
+        eventDate: selectedConcert.date,
+        impactStory: story,
+        charityNames: charityNames
+      };
+
+      setPurchases([newPurchase, ...purchases]);
+      alert('Purchase confirmed! View your impact story in your Vault.');
+      setView('profile');
+    } catch (error) {
+      console.error("Purchase error:", error);
+      alert("Failed to process purchase. Please try again.");
+    } finally {
+      setIsPurchasing(false);
+    }
   };
 
   // Artist Actions
   const handleAddConcert = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const formData = new FormData(e.currentTarget);
+    const selectedCharityIds = Array.from(formData.getAll('charityIds')) as string[];
+    
     const newConcert: Concert = {
       id: `ev-${Date.now()}`,
       artistId: currentUser?.linkedArtistId || '1',
@@ -192,7 +233,8 @@ export default function App() {
       date: new Date(formData.get('date') as string).toISOString(),
       launchDate: new Date().toISOString(),
       floorDate: new Date(formData.get('floorDate') as string).toISOString(),
-      maxMultiplier: Number(formData.get('multiplier'))
+      maxMultiplier: Number(formData.get('multiplier')),
+      charityIds: selectedCharityIds.length > 0 ? selectedCharityIds : []
     };
     setConcerts([...concerts, newConcert]);
     e.currentTarget.reset();
@@ -213,9 +255,19 @@ export default function App() {
     e.currentTarget.reset();
   };
 
+  const currentArtistProfile = useMemo(() => {
+    if (!currentUser?.linkedArtistId) return null;
+    return INITIAL_ARTISTS.find(a => a.id === currentUser.linkedArtistId);
+  }, [currentUser]);
+
   return (
     <div className="min-h-screen pb-20">
-      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} onLogin={setCurrentUser} users={users} setUsers={setUsers} />
+      <AuthModal isOpen={isAuthModalOpen} onClose={() => setIsAuthModalOpen(false)} onLogin={(user) => {
+        setCurrentUser(user);
+        if (user.category === 'artist') setView('artist_hub');
+        else if (user.category === 'admin') setView('admin');
+        else setView('home');
+      }} users={users} setUsers={setUsers} />
       
       <header className="sticky top-0 z-50 glass border-b border-white/5 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('home')}>
@@ -262,9 +314,9 @@ export default function App() {
               <div>
                 <h2 className="text-5xl font-black mb-2">{selectedArtist.name}</h2>
                 <p className="text-gray-400 max-w-xl">{selectedArtist.description}</p>
-                <div className="flex gap-4 mt-6">
+                <div className="flex gap-4 mt-6 overflow-x-auto pb-4">
                   {concerts.filter(c => c.artistId === selectedArtist.id).map(c => (
-                    <button key={c.id} onClick={() => setSelectedConcert(c)} className={`px-6 py-3 rounded-2xl border transition-all ${selectedConcert?.id === c.id ? 'bg-purple-600 border-purple-500 text-white' : 'glass border-white/5 hover:border-white/20'}`}>
+                    <button key={c.id} onClick={() => setSelectedConcert(c)} className={`px-6 py-3 rounded-2xl border transition-all shrink-0 ${selectedConcert?.id === c.id ? 'bg-purple-600 border-purple-500 text-white' : 'glass border-white/5 hover:border-white/20'}`}>
                       <p className="text-xs uppercase font-bold text-white/50">{arenas.find(a => a.id === c.arenaId)?.city}</p>
                       <p className="font-bold">{new Date(c.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>
                     </button>
@@ -298,12 +350,43 @@ export default function App() {
                         <div className="flex items-center gap-6">
                           <div className="text-right">
                             <p className="text-xl font-black">{formatCurrency(calculateCurrentPrice(s.basePrice, selectedConcert).total)}</p>
-                            <p className="text-[10px] text-pink-400 font-bold">ETHICAL DONATION INCLUDED</p>
+                            <p className="text-[10px] text-pink-400 font-bold uppercase">Ethical Donation Included</p>
                           </div>
-                          <button onClick={() => handleBuy(s)} className="px-6 py-2 bg-white text-black font-bold rounded-lg hover:bg-purple-600 hover:text-white transition-all">Buy</button>
+                          <button 
+                            disabled={isPurchasing}
+                            onClick={() => handleBuy(s)} 
+                            className={`px-6 py-2 font-bold rounded-lg transition-all ${isPurchasing ? 'bg-gray-600 text-gray-400 cursor-not-allowed' : 'bg-white text-black hover:bg-purple-600 hover:text-white'}`}>
+                            {isPurchasing ? 'Processing...' : 'Buy'}
+                          </button>
                         </div>
                       </div>
                     ))}
+                  </div>
+                </div>
+
+                <div className="lg:col-span-1 space-y-6">
+                  <div className="glass rounded-3xl p-8">
+                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Heart className="text-pink-500" /> Supported Causes</h3>
+                    <div className="space-y-4">
+                      {selectedArtist.charityCauses.filter(c => selectedConcert.charityIds.includes(c.id)).map(cause => (
+                        <div key={cause.id} className="p-4 bg-white/5 rounded-2xl border border-white/5">
+                          <div className="flex items-center gap-3 mb-2">
+                            <span className="text-2xl">{cause.icon}</span>
+                            <p className="font-bold text-sm">{cause.name}</p>
+                          </div>
+                          <p className="text-xs text-gray-500 leading-relaxed">{cause.description}</p>
+                        </div>
+                      ))}
+                      {selectedConcert.charityIds.length === 0 && (
+                        <p className="text-sm text-gray-500 italic">This artist hasn't linked specific causes for this date yet.</p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="glass rounded-3xl p-8">
+                     <h3 className="text-lg font-bold mb-4">Anti-Scalper Logic</h3>
+                     <p className="text-sm text-gray-400 leading-relaxed">
+                       Tickets start at {selectedConcert.maxMultiplier}x base price as a mandatory donation. This price decays linearly until {new Date(selectedConcert.floorDate).toLocaleDateString()}, ensuring the market price settles naturally without secondary scalping profits.
+                     </p>
                   </div>
                 </div>
               </div>
@@ -313,22 +396,95 @@ export default function App() {
 
         {view === 'profile' && currentUser && (
           <div className="animate-in slide-in-from-right-4">
-            <h2 className="text-3xl font-bold mb-8">Your Vault</h2>
-            <div className="space-y-4">
-              {purchases.filter(p => p.userEmail === currentUser.email).map(p => (
-                <div key={p.id} className="glass rounded-2xl p-6 flex justify-between items-center">
-                  <div>
-                    <p className="text-xs text-purple-400 font-bold mb-1">{p.id}</p>
-                    <h4 className="text-xl font-bold">{p.artistName}</h4>
-                    <p className="text-sm text-gray-500">{p.arenaName} • {new Date(p.eventDate).toLocaleDateString()}</p>
+            <div className="flex items-center justify-between mb-8">
+              <h2 className="text-3xl font-bold">{currentUser.category === 'artist' ? 'Artist Profile' : 'Your Vault'}</h2>
+              <div className="flex gap-4">
+                 {currentUser.category === 'artist' && (
+                    <button onClick={() => setView('artist_hub')} className="px-4 py-2 glass rounded-lg text-sm font-bold flex items-center gap-2 text-purple-400">
+                      <Music size={16} /> Manage Tour
+                    </button>
+                 )}
+                 {currentUser.category === 'admin' && (
+                    <button onClick={() => setView('admin')} className="px-4 py-2 glass rounded-lg text-sm font-bold flex items-center gap-2 text-blue-400">
+                      <ShieldCheck size={16} /> Admin Panel
+                    </button>
+                 )}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+              <div className="lg:col-span-1 space-y-6">
+                <div className="glass rounded-3xl p-6 text-center">
+                  <div className="w-24 h-24 bg-gradient-to-br from-purple-500 to-pink-500 rounded-full mx-auto mb-4 flex items-center justify-center text-3xl font-bold text-white shadow-xl">
+                    {currentUser.name.charAt(0)}
                   </div>
-                  <div className="text-right">
-                    <p className="text-xl font-black">{formatCurrency(p.totalPrice)}</p>
-                    <p className="text-xs text-pink-400">Donated {formatCurrency(p.donationAmount)}</p>
-                    <button className="mt-2 text-xs text-blue-400 font-bold uppercase tracking-widest flex items-center gap-1"><Receipt size={14} /> Tax Receipt</button>
+                  <h3 className="text-xl font-bold">{currentUser.name}</h3>
+                  <p className="text-gray-500 text-sm mb-4 uppercase tracking-tighter">{currentUser.category}</p>
+                  <div className="text-left space-y-2 pt-4 border-t border-white/5">
+                    <p className="text-xs text-gray-500 flex items-center gap-2"><Mail size={12}/> {currentUser.email}</p>
+                    <p className="text-xs text-gray-500 flex items-center gap-2"><Calendar size={12}/> Joined {new Date(currentUser.joinedAt).toLocaleDateString()}</p>
                   </div>
                 </div>
-              ))}
+              </div>
+
+              <div className="lg:col-span-3">
+                {currentUser.category === 'customer' ? (
+                  <div className="space-y-6">
+                    {purchases.filter(p => p.userEmail === currentUser.email).map(p => (
+                      <div key={p.id} className="glass rounded-2xl overflow-hidden border border-white/5 hover:border-purple-500/20 transition-all shadow-lg">
+                        <div className="p-6 flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                          <div>
+                            <p className="text-xs text-purple-400 font-bold mb-1">{p.id}</p>
+                            <h4 className="text-2xl font-black">{p.artistName}</h4>
+                            <p className="text-sm text-gray-400 font-medium">{p.arenaName} • {new Date(p.eventDate).toLocaleDateString()}</p>
+                            <div className="mt-2 flex flex-wrap gap-2">
+                                <span className="bg-white/5 px-3 py-1 rounded-full text-[10px] font-bold text-gray-400 border border-white/5">{p.sectionName}</span>
+                                {p.charityNames?.map(cn => (
+                                  <span key={cn} className="bg-pink-500/10 px-3 py-1 rounded-full text-[10px] font-bold text-pink-400 border border-pink-500/10">Support: {cn}</span>
+                                ))}
+                            </div>
+                          </div>
+                          <div className="text-left md:text-right">
+                            <p className="text-2xl font-black">{formatCurrency(p.totalPrice)}</p>
+                            <p className="text-xs text-pink-400 font-bold uppercase tracking-wide">Included {formatCurrency(p.donationAmount)} donation</p>
+                          </div>
+                        </div>
+                        
+                        {p.impactStory && (
+                          <div className="bg-purple-600/10 border-t border-purple-500/10 p-6">
+                            <div className="flex items-start gap-4">
+                              <div className="bg-purple-600/20 p-2 rounded-xl text-purple-400 shrink-0">
+                                <Sparkles size={20} />
+                              </div>
+                              <div>
+                                <h5 className="text-[10px] font-bold text-purple-400 uppercase tracking-widest mb-2 flex items-center gap-2">Gemini Verified Impact Story</h5>
+                                <p className="text-sm text-gray-300 italic leading-relaxed">"{p.impactStory}"</p>
+                                <button className="mt-4 text-xs text-blue-400 font-bold uppercase tracking-widest flex items-center gap-1 hover:underline"><Receipt size={14} /> Download Tax Receipt</button>
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                    {purchases.filter(p => p.userEmail === currentUser.email).length === 0 && (
+                      <div className="p-20 text-center glass rounded-3xl border-dashed border-white/10 border-2">
+                        <p className="text-gray-500 italic">No tickets in your vault yet.</p>
+                        <button onClick={() => setView('home')} className="mt-4 text-purple-400 font-bold hover:underline">Explore Tours</button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="glass rounded-3xl p-12 text-center">
+                    <Settings className="mx-auto mb-4 text-gray-600" size={48} />
+                    <h3 className="text-xl font-bold mb-2">Management Role Active</h3>
+                    <p className="text-gray-500 mb-6">You are logged in with elevated permissions. Use the specific hubs to manage your activity.</p>
+                    <div className="flex justify-center gap-4">
+                       {currentUser.category === 'artist' && <button onClick={() => setView('artist_hub')} className="bg-purple-600 px-6 py-2 rounded-lg font-bold shadow-lg shadow-purple-900/20">Go to Artist Hub</button>}
+                       {currentUser.category === 'admin' && <button onClick={() => setView('admin')} className="bg-blue-600 px-6 py-2 rounded-lg font-bold shadow-lg shadow-blue-900/20">Go to Admin Hub</button>}
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         )}
@@ -389,22 +545,22 @@ export default function App() {
                   <input name="name" placeholder="Arena Name" required className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 outline-none" />
                   <input name="city" placeholder="City" required className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 outline-none" />
                   <input name="capacity" type="number" placeholder="Total Capacity" required className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 outline-none" />
-                  <button className="w-full py-3 bg-white text-black font-bold rounded-xl flex items-center justify-center gap-2"><Plus size={18} /> Register Arena</button>
+                  <button className="w-full py-3 bg-white text-black font-bold rounded-xl flex items-center justify-center gap-2 shadow-lg shadow-white/10"><Plus size={18} /> Register Arena</button>
                 </form>
               </div>
               <div className="glass rounded-3xl p-8">
-                <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Heart className="text-gray-400" /> Active Charities</h3>
+                <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Heart className="text-gray-400" /> Global Cause Library</h3>
                 <div className="space-y-3">
                   {charities.slice(0, 5).map(c => (
-                    <div key={c.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl">
+                    <div key={c.id} className="flex items-center justify-between p-3 bg-white/5 rounded-xl border border-white/5">
                       <div className="flex items-center gap-3">
                         <span className="text-xl">{c.icon}</span>
                         <p className="text-sm font-bold">{c.name}</p>
                       </div>
-                      <button className="text-red-400 p-1 hover:bg-red-400/10 rounded"><Trash2 size={16} /></button>
+                      <button className="text-red-400 p-1 hover:bg-red-400/10 rounded transition-colors"><Trash2 size={16} /></button>
                     </div>
                   ))}
-                  <button className="w-full py-3 border border-dashed border-white/20 rounded-xl text-xs font-bold text-gray-500 hover:text-white transition-all">+ Add New Charity Cause</button>
+                  <button className="w-full py-3 border border-dashed border-white/20 rounded-xl text-xs font-bold text-gray-500 hover:text-white transition-all hover:border-white/40">+ Add New Charity Cause</button>
                 </div>
               </div>
             </section>
@@ -412,56 +568,123 @@ export default function App() {
         )}
 
         {view === 'artist_hub' && currentUser?.category === 'artist' && (
-          <div className="animate-in slide-in-from-bottom-4 space-y-12">
+          <div className="animate-in slide-in-from-bottom-4 space-y-8">
             <div className="flex justify-between items-end">
               <div>
-                <h2 className="text-4xl font-black flex items-center gap-3"><Music className="text-pink-600" /> Artist Management</h2>
-                <p className="text-gray-500">Linked to: <strong>{INITIAL_ARTISTS.find(a => a.id === currentUser.linkedArtistId)?.name}</strong></p>
+                <h2 className="text-4xl font-black flex items-center gap-3 tracking-tighter"><Music className="text-pink-600" /> Artist Management</h2>
+                <p className="text-gray-500 font-medium">Linked to: <span className="text-white">{currentArtistProfile?.name}</span></p>
+              </div>
+              <div className="flex gap-4">
+                <button onClick={() => setView('profile')} className="p-3 glass rounded-full hover:border-purple-500/50 transition-all"><User size={20} /></button>
+              </div>
+            </div>
+
+            {/* Performance Metrics Section */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              <div className="glass rounded-3xl p-6 border-l-4 border-purple-500">
+                <div className="flex justify-between items-start mb-2">
+                  <DollarSign className="text-purple-400" size={20} />
+                  <span className="text-[10px] font-bold text-green-400">+12% vs last tour</span>
+                </div>
+                <p className="text-2xl font-black">$428.5k</p>
+                <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Gross Revenue</p>
+              </div>
+              <div className="glass rounded-3xl p-6 border-l-4 border-pink-500">
+                <div className="flex justify-between items-start mb-2">
+                  <Heart className="text-pink-400" size={20} />
+                  <span className="text-[10px] font-bold text-pink-400">Direct Impact</span>
+                </div>
+                <p className="text-2xl font-black">$182.2k</p>
+                <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Philanthropic Funds</p>
+              </div>
+              <div className="glass rounded-3xl p-6 border-l-4 border-blue-500">
+                <div className="flex justify-between items-start mb-2">
+                  <Users className="text-blue-400" size={20} />
+                </div>
+                <p className="text-2xl font-black">12,450</p>
+                <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Tickets Verified</p>
+              </div>
+              <div className="glass rounded-3xl p-6 border-l-4 border-green-500">
+                <div className="flex justify-between items-start mb-2">
+                  <TrendingUp className="text-green-400" size={20} />
+                </div>
+                <p className="text-2xl font-black">94%</p>
+                <p className="text-[10px] uppercase font-bold text-gray-500 tracking-widest">Anti-Scalp Efficiency</p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              <div className="lg:col-span-1 glass rounded-3xl p-8 h-fit">
-                <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Calendar className="text-gray-400" /> Create Tour Stop</h3>
-                <form onSubmit={handleAddConcert} className="space-y-4">
+              <div className="lg:col-span-2 glass rounded-3xl p-8">
+                <h3 className="text-xl font-bold mb-6 flex items-center gap-2">Sales Velocity <span className="text-xs font-normal text-gray-500">(7 Day Window)</span></h3>
+                <div className="h-64">
+                  <ResponsiveContainer width="100%" height="100%">
+                    <BarChart data={salesMetrics}>
+                      <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
+                      <XAxis dataKey="day" stroke="#666" fontSize={10} axisLine={false} tickLine={false} />
+                      <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '12px' }} />
+                      <Bar dataKey="revenue" fill="#8b5cf6" radius={[4, 4, 0, 0]} />
+                    </BarChart>
+                  </ResponsiveContainer>
+                </div>
+              </div>
+              <div className="lg:col-span-1 glass rounded-3xl p-8">
+                <h3 className="text-xl font-bold mb-6 flex items-center gap-2 tracking-tight"><Calendar className="text-gray-400" /> Create Tour Stop</h3>
+                <form onSubmit={handleAddConcert} className="space-y-6">
                   <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase ml-1">Arena</label>
-                    <select name="arenaId" required className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 outline-none text-white">
+                    <label className="text-[10px] uppercase font-bold text-gray-500 mb-2 block">Arena Location</label>
+                    <select name="arenaId" required className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 outline-none text-white text-sm">
                       {arenas.map(a => <option key={a.id} value={a.id} className="bg-black">{a.name} ({a.city})</option>)}
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase ml-1">Show Date</label>
-                    <input name="date" type="date" required className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 outline-none" />
+                    <label className="text-[10px] uppercase font-bold text-gray-500 mb-2 block">Event & Floor Dates</label>
+                    <div className="grid grid-cols-2 gap-3">
+                      <input name="date" type="date" required className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 outline-none text-sm" />
+                      <input name="floorDate" type="date" required className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 outline-none text-sm" />
+                    </div>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase ml-1">Price Floor Date</label>
-                    <input name="floorDate" type="date" required className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 outline-none" />
+                    <label className="text-[10px] uppercase font-bold text-gray-500 mb-2 block">Select Causes for this Stop</label>
+                    <div className="space-y-2 max-h-40 overflow-y-auto pr-2 custom-scrollbar">
+                      {currentArtistProfile?.charityCauses.map(cause => (
+                        <label key={cause.id} className="flex items-center gap-3 p-3 bg-white/5 rounded-xl border border-white/5 cursor-pointer hover:bg-white/10 transition-all">
+                          <input type="checkbox" name="charityIds" value={cause.id} className="w-4 h-4 rounded border-gray-600 bg-black text-purple-600 focus:ring-purple-600" />
+                          <span className="text-xs font-bold text-gray-300">{cause.icon} {cause.name}</span>
+                        </label>
+                      ))}
+                    </div>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-gray-500 uppercase ml-1">Donation Multiplier (Max)</label>
-                    <input name="multiplier" type="number" defaultValue="50" className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 outline-none" />
+                    <label className="text-[10px] uppercase font-bold text-gray-500 mb-2 block">Anti-Scalp Multiplier</label>
+                    <input name="multiplier" type="number" defaultValue="100" className="w-full bg-white/5 border border-white/10 rounded-xl py-3 px-4 outline-none text-sm" />
                   </div>
-                  <button className="w-full py-4 bg-purple-600 text-white font-bold rounded-xl flex items-center justify-center gap-2"><Plus size={20} /> Launch Tour Stop</button>
+                  <button className="w-full py-4 bg-purple-600 text-white font-bold rounded-xl hover:bg-purple-500 transition-all shadow-lg shadow-purple-900/40">Deploy Tour Date</button>
                 </form>
               </div>
+            </div>
 
-              <div className="lg:col-span-2 glass rounded-3xl p-8">
-                <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Briefcase className="text-gray-400" /> Active Tour Stops</h3>
-                <div className="space-y-4">
-                  {concerts.filter(c => c.artistId === currentUser.linkedArtistId).map(c => (
-                    <div key={c.id} className="p-6 bg-white/5 rounded-2xl border border-white/10 flex justify-between items-center">
-                      <div>
-                        <h4 className="text-lg font-bold">{arenas.find(a => a.id === c.arenaId)?.name}</h4>
-                        <p className="text-sm text-gray-500">{new Date(c.date).toLocaleDateString()} • {c.maxMultiplier}x Max Multiplier</p>
-                      </div>
-                      <div className="flex gap-2">
-                        <button className="p-2 glass rounded-lg text-blue-400"><Edit3 size={18} /></button>
-                        <button onClick={() => setConcerts(concerts.filter(x => x.id !== c.id))} className="p-2 glass rounded-lg text-red-400"><Trash2 size={18} /></button>
+            <div className="glass rounded-3xl p-8">
+              <h3 className="text-xl font-bold mb-6 flex items-center gap-2"><Briefcase className="text-gray-400" /> Live Tour Stops</h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                {concerts.filter(c => c.artistId === currentUser.linkedArtistId).map(c => (
+                  <div key={c.id} className="p-6 bg-white/5 rounded-2xl border border-white/10 flex flex-col justify-between hover:border-purple-500/30 transition-all group">
+                    <div className="mb-4">
+                      <h4 className="text-lg font-bold group-hover:text-purple-400 transition-colors">{arenas.find(a => a.id === c.arenaId)?.name}</h4>
+                      <p className="text-xs text-gray-500 uppercase tracking-widest mb-3">{arenas.find(a => a.id === c.arenaId)?.city} • {new Date(c.date).toLocaleDateString()}</p>
+                      <div className="flex flex-wrap gap-1">
+                        {c.charityIds.map(cid => (
+                          <span key={cid} className="px-2 py-0.5 bg-pink-500/10 text-pink-400 text-[9px] rounded-full font-bold border border-pink-500/10">
+                            {currentArtistProfile?.charityCauses.find(cause => cause.id === cid)?.name}
+                          </span>
+                        ))}
                       </div>
                     </div>
-                  ))}
-                </div>
+                    <div className="flex gap-2 border-t border-white/5 pt-4">
+                      <button className="flex-1 py-2 glass rounded-lg text-[10px] font-bold uppercase tracking-widest text-gray-400 hover:text-white transition-colors">Edit</button>
+                      <button onClick={() => setConcerts(concerts.filter(x => x.id !== c.id))} className="p-2 glass rounded-lg text-gray-500 hover:text-red-400 transition-colors"><Trash2 size={16} /></button>
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
           </div>
@@ -469,11 +692,27 @@ export default function App() {
       </main>
 
       <nav className="fixed bottom-0 left-0 right-0 glass border-t border-white/10 px-8 py-4 md:hidden flex justify-around">
-        <button onClick={() => setView('home')} className={`flex flex-col items-center gap-1 ${view === 'home' ? 'text-purple-500' : 'text-gray-500'}`}><Search size={20} /><span className="text-[10px] font-bold">Explore</span></button>
-        <button onClick={() => setView('profile')} className={`flex flex-col items-center gap-1 ${view === 'profile' ? 'text-purple-500' : 'text-gray-500'}`}><History size={20} /><span className="text-[10px] font-bold">Vault</span></button>
-        {currentUser?.category === 'admin' && <button onClick={() => setView('admin')} className={`flex flex-col items-center gap-1 ${view === 'admin' ? 'text-purple-500' : 'text-gray-500'}`}><ShieldCheck size={20} /><span className="text-[10px] font-bold">Admin</span></button>}
-        {currentUser?.category === 'artist' && <button onClick={() => setView('artist_hub')} className={`flex flex-col items-center gap-1 ${view === 'artist_hub' ? 'text-purple-500' : 'text-gray-500'}`}><Music size={20} /><span className="text-[10px] font-bold">Artist</span></button>}
+        <button onClick={() => setView('home')} className={`flex flex-col items-center gap-1 ${view === 'home' ? 'text-purple-400' : 'text-gray-500'}`}><Search size={20} /><span className="text-[10px] font-bold">Explore</span></button>
+        <button onClick={() => setView('profile')} className={`flex flex-col items-center gap-1 ${view === 'profile' ? 'text-purple-400' : 'text-gray-500'}`}><History size={20} /><span className="text-[10px] font-bold">Vault</span></button>
+        {currentUser?.category === 'admin' && <button onClick={() => setView('admin')} className={`flex flex-col items-center gap-1 ${view === 'admin' ? 'text-purple-400' : 'text-gray-500'}`}><ShieldCheck size={20} /><span className="text-[10px] font-bold">Admin</span></button>}
+        {currentUser?.category === 'artist' && <button onClick={() => setView('artist_hub')} className={`flex flex-col items-center gap-1 ${view === 'artist_hub' ? 'text-purple-400' : 'text-gray-500'}`}><Music size={20} /><span className="text-[10px] font-bold">Artist</span></button>}
       </nav>
+
+      <style>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: rgba(255,255,255,0.02);
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255,255,255,0.1);
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(255,255,255,0.2);
+        }
+      `}</style>
     </div>
   );
 }
