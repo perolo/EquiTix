@@ -1,0 +1,7 @@
+{
+  "name": "EquiTix - Ethical Arena Tours",
+  "description": "A revolutionary concert ticketing platform that eliminates the black market through dynamic donation-based pricing. High initial costs decay over time, turning scalper profits into charitable impact.",
+  "requestFramePermissions": [
+    "geolocation"
+  ]
+}
