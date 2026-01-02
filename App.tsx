@@ -1,6 +1,6 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Globe, Music, MapPin, Heart, ChevronRight, Bell, Receipt, History } from 'lucide-react';
+import { Search, Globe, Music, MapPin, Heart, ChevronRight, Bell, Receipt, History, User, Mail, Lock, Key, X, AlertCircle, CheckCircle } from 'lucide-react';
 import { ARTISTS, ARENAS, CONCERTS } from './constants';
 import { Artist, Arena, Concert, Watcher, PriceSnapshot, ArenaSection } from './types';
 import { calculateCurrentPrice, formatCurrency } from './utils/pricing';
@@ -29,7 +29,6 @@ const ImpactCounter = () => {
   );
 };
 
-// Fix: Use React.FC to correctly handle the 'key' prop when rendering in a list and ensure type safety for props
 const ArtistCard: React.FC<{ artist: Artist; onClick: () => void }> = ({ artist, onClick }) => (
   <div 
     onClick={onClick}
@@ -43,7 +42,6 @@ const ArtistCard: React.FC<{ artist: Artist; onClick: () => void }> = ({ artist,
   </div>
 );
 
-// Fix: Use React.FC and concrete types (ArenaSection, Concert) to resolve 'key' prop and type mismatch errors
 const SectionPriceRow: React.FC<{ section: ArenaSection; concert: Concert; onWatch: (s: ArenaSection) => void }> = ({ section, concert, onWatch }) => {
   const price = calculateCurrentPrice(section.basePrice, concert);
   
@@ -72,6 +70,138 @@ const SectionPriceRow: React.FC<{ section: ArenaSection; concert: Concert; onWat
   );
 };
 
+// --- Auth Components ---
+
+const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void; onLogin: (email: string) => void }> = ({ isOpen, onClose, onLogin }) => {
+  const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
+
+  const generatePassword = () => {
+    const chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()";
+    let pass = "";
+    for (let i = 0; i < 12; i++) {
+      pass += chars.charAt(Math.floor(Math.random() * chars.length));
+    }
+    setPassword(pass);
+  };
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    setStatus(null);
+
+    if (mode === 'login') {
+      // Simulate login
+      if (email.includes('@') && password.length >= 6) {
+        onLogin(email);
+        onClose();
+      } else {
+        setStatus({ type: 'error', message: 'Invalid credentials. Please check your email and password.' });
+      }
+    } else if (mode === 'signup') {
+      // Simulate activation email
+      setStatus({ type: 'success', message: `Activation email sent to ${email}. Please check your inbox to verify your account.` });
+    } else if (mode === 'forgot') {
+      // Simulate reset email
+      setStatus({ type: 'success', message: `Password reset instructions have been sent to ${email}.` });
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/80 backdrop-blur-sm animate-in fade-in duration-300">
+      <div className="relative w-full max-w-md glass rounded-3xl p-8 border border-white/10 shadow-2xl">
+        <button onClick={onClose} className="absolute right-6 top-6 text-gray-500 hover:text-white transition-colors">
+          <X size={24} />
+        </button>
+
+        <div className="text-center mb-8">
+          <div className="w-12 h-12 bg-purple-600 rounded-xl flex items-center justify-center font-bold mx-auto mb-4 text-xl">E</div>
+          <h2 className="text-2xl font-bold">
+            {mode === 'login' ? 'Welcome Back' : mode === 'signup' ? 'Create Account' : 'Reset Password'}
+          </h2>
+          <p className="text-gray-400 text-sm mt-1">
+            {mode === 'login' ? 'Sign in to access your tickets and alerts' : mode === 'signup' ? 'Join the ethical ticketing revolution' : 'We will help you get back into your account'}
+          </p>
+        </div>
+
+        {status && (
+          <div className={`mb-6 p-4 rounded-xl flex items-start gap-3 border ${status.type === 'success' ? 'bg-green-500/10 border-green-500/20 text-green-400' : 'bg-red-500/10 border-red-500/20 text-red-400'}`}>
+            {status.type === 'success' ? <CheckCircle size={20} className="shrink-0" /> : <AlertCircle size={20} className="shrink-0" />}
+            <span className="text-sm">{status.message}</span>
+          </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div className="space-y-1">
+            <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider ml-1">Email Address</label>
+            <div className="relative">
+              <Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+              <input 
+                type="email" 
+                required
+                className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                placeholder="name@example.com"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+              />
+            </div>
+          </div>
+
+          {mode !== 'forgot' && (
+            <div className="space-y-1">
+              <div className="flex justify-between items-end">
+                <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider ml-1">Password</label>
+                {mode === 'signup' && (
+                  <button type="button" onClick={generatePassword} className="text-xs text-purple-400 hover:text-purple-300 font-bold mb-1 flex items-center gap-1">
+                    <Key size={12} /> Generate Secure
+                  </button>
+                )}
+              </div>
+              <div className="relative">
+                <Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                <input 
+                  type="password" 
+                  required
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                  placeholder="••••••••"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
+          <button className="w-full py-3 bg-purple-600 hover:bg-purple-500 text-white font-bold rounded-xl transition-all mt-4">
+            {mode === 'login' ? 'Sign In' : mode === 'signup' ? 'Create Account' : 'Send Reset Link'}
+          </button>
+        </form>
+
+        <div className="mt-8 pt-6 border-t border-white/5 text-center space-y-2">
+          {mode === 'login' && (
+            <>
+              <p className="text-sm text-gray-400">
+                Don't have an account? <button onClick={() => setMode('signup')} className="text-purple-400 hover:underline font-medium">Create one</button>
+              </p>
+              <button onClick={() => setMode('forgot')} className="text-xs text-gray-500 hover:text-white transition-colors underline decoration-dotted">I don't remember my password</button>
+            </>
+          )}
+          {mode === 'signup' && (
+            <p className="text-sm text-gray-400">
+              Already a member? <button onClick={() => setMode('login')} className="text-purple-400 hover:underline font-medium">Log in</button>
+            </p>
+          )}
+          {mode === 'forgot' && (
+            <button onClick={() => setMode('login')} className="text-sm text-purple-400 hover:underline font-medium">Back to login</button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // --- Main App ---
 
 export default function App() {
@@ -82,6 +212,10 @@ export default function App() {
   const [watchers, setWatchers] = useState<Watcher[]>([]);
   const [impactStory, setImpactStory] = useState<string>('');
   const [receipt, setReceipt] = useState<string>('');
+  
+  // Auth state
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
+  const [currentUser, setCurrentUser] = useState<string | null>(null);
 
   const filteredArtists = useMemo(() => {
     return ARTISTS.filter(a => a.name.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -115,6 +249,14 @@ export default function App() {
       setWatchers([...watchers, newWatcher]);
       alert(`Watching ${section.name}. We'll notify you when it hits ${formatCurrency(Number(target))}.`);
     }
+  };
+
+  const handleLogin = (email: string) => {
+    setCurrentUser(email);
+  };
+
+  const handleLogout = () => {
+    setCurrentUser(null);
   };
 
   // Pricing visualization data
@@ -154,6 +296,12 @@ export default function App() {
 
   return (
     <div className="min-h-screen pb-20">
+      <AuthModal 
+        isOpen={isAuthModalOpen} 
+        onClose={() => setIsAuthModalOpen(false)} 
+        onLogin={handleLogin}
+      />
+
       {/* Header */}
       <header className="sticky top-0 z-50 glass border-b border-white/5 px-6 py-4 flex items-center justify-between">
         <div className="flex items-center gap-2 cursor-pointer" onClick={() => setView('home')}>
@@ -175,8 +323,28 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-4">
-          <button className="text-gray-400 hover:text-white transition-colors"><Globe size={20} /></button>
-          <button className="px-4 py-2 bg-purple-600 rounded-lg font-semibold text-sm hover:bg-purple-500 transition-colors">Sign In</button>
+          <button className="text-gray-400 hover:text-white transition-colors hidden sm:block"><Globe size={20} /></button>
+          {currentUser ? (
+            <div className="flex items-center gap-3">
+              <div className="text-right hidden sm:block">
+                <p className="text-[10px] uppercase font-bold text-purple-400">Member</p>
+                <p className="text-xs font-medium truncate max-w-[120px]">{currentUser}</p>
+              </div>
+              <button 
+                onClick={handleLogout}
+                className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/20 transition-all border border-white/10"
+              >
+                <User size={20} />
+              </button>
+            </div>
+          ) : (
+            <button 
+              onClick={() => setIsAuthModalOpen(true)}
+              className="px-4 py-2 bg-purple-600 rounded-lg font-semibold text-sm hover:bg-purple-500 transition-colors"
+            >
+              Sign In
+            </button>
+          )}
         </div>
       </header>
 
@@ -314,7 +482,7 @@ export default function App() {
                             ).total)}
                           </span>
                           <p className="text-[10px] text-pink-500 font-bold uppercase">Current Multiplier: ~{
-                            Math.round(calculateCurrentPrice(1, selectedConcert).donation)
+                            Math.round(calculateCurrentPrice(1, selectedConcert).donation / (ARENAS.find(a => a.id === selectedConcert.arenaId)?.sections[0].basePrice || 1))
                           }x</p>
                         </div>
                       </div>
