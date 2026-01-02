@@ -1,4 +1,6 @@
 
+export type UserCategory = 'customer' | 'artist' | 'admin';
+
 export interface Artist {
   id: string;
   name: string;
@@ -60,8 +62,9 @@ export interface UserAccount {
   passwordHash: string;
   name: string;
   isActivated: boolean;
-  isAdmin: boolean;
+  category: UserCategory;
   joinedAt: string;
+  linkedArtistId?: string; // Optional: Link artist user to an actual Artist profile
 }
 
 export interface Purchase {

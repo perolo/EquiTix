@@ -1,25 +1,28 @@
 
 # Requirement Specification - EquiTix
 
-## Functional Requirements
+## 1. Role-Based Access Control (RBAC)
+- **Admin Role:** Full access to User Management, Arena registration, and Charity vetting.
+- **Artist Role:** Restricted access to Concert creation and management for their linked profile.
+- **Customer Role:** Standard access to search, view, and purchase tickets.
 
-### 1. User Account Management
-- **Persistence:** System must store a database of UserAccounts including names, encrypted passwords, and status.
-- **Activation Workflow:** New accounts are set to `isActivated: false` by default. They cannot log in until changed to `true`.
-- **Dashboard:** Each user has a unique profile view showing metadata and order history.
+## 2. CRUD Functionality
+### 2.1 User Management (Admin Only)
+- List all users with join dates and status.
+- Toggle activation status (Approval).
+- Modify user category (Customer, Artist, Admin).
 
-### 2. Admin Dashboard
-- **Access Control:** Only users with `isAdmin: true` can access the Command Center.
-- **CRUD Operations:** Admins must be able to list all users and toggle their activation status.
-- **Override Capability:** Admins act as the primary gatekeepers for new account approvals until automated email verification is implemented.
+### 2.2 Arena Management (Admin Only)
+- Create new arena profiles with name, city, and capacity.
+- Automatically generate a default "General Admission" section for new arenas.
 
-### 3. Dynamic Donation Decay (D3)
-- Tickets launch with a **Donation Multiplier**.
-- The donation component decays over time until reaching the **Base Price**.
+### 2.3 Charity Management (Admin Only)
+- Manage a global pool of Charity Causes that artists can choose from.
 
-### 4. Transactional Integrity
-- Every purchase must generate a unique `Purchase` object.
-- Purchases must be linked to the user's email for historical tracking in their vault.
+### 2.4 Concert Management (Artist Only)
+- Artists can create tour stops (Concerts) by linking to existing Arenas.
+- Artists define the `floorDate` (when donation hits $0) and the `multiplier`.
 
-### 5. AI Narrative Engine
-- Use Gemini API to describe real-world impact of the donation portions of ticket sales.
+## 3. Data Integrity & Security
+- **Authentication:** All sensitive actions (Buy, Create Concert, Activate User) require a valid `currentUser` session.
+- **Data Persistence:** Mocked using local state but architected to support RESTful API integration.
