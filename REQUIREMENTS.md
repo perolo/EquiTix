@@ -1,30 +1,25 @@
-# Requirement Specification - EquiTix
 
-EquiTix is a ticket-distribution platform designed to neutralize the secondary "black market" (scalping) by capturing market-clearing prices for philanthropic causes.
+# Requirement Specification - EquiTix
 
 ## Functional Requirements
 
-### 1. Dynamic Donation Decay (D3)
-- Tickets launch at a high price consisting of a **Base Price** plus a **Donation Multiplier**.
-- The donation component decays over time from the `launchDate` to the `floorDate` (typically the day of the concert).
-- The decay follows a predictable path (linear or exponential) set by the artist.
+### 1. User Account Management
+- **Persistence:** System must store a database of UserAccounts including names, encrypted passwords, and status.
+- **Activation Workflow:** New accounts are set to `isActivated: false` by default. They cannot log in until changed to `true`.
+- **Dashboard:** Each user has a unique profile view showing metadata and order history.
 
-### 2. Mandatory Philanthropy
-- A predefined percentage of the total ticket price during the premium period is designated as a tax-deductible donation.
-- The donation must be directed to a selection of causes vetted and chosen by the artist.
+### 2. Admin Dashboard
+- **Access Control:** Only users with `isAdmin: true` can access the Command Center.
+- **CRUD Operations:** Admins must be able to list all users and toggle their activation status.
+- **Override Capability:** Admins act as the primary gatekeepers for new account approvals until automated email verification is implemented.
 
-### 3. Artist-Driven Configuration
-- Artists define the `maxMultiplier` (e.g., 10x, 50x, or 100x the base price).
-- Artists select the `charityCauses` from a supported list.
-- Artists set the `floorDate` (when the price reaches base value).
+### 3. Dynamic Donation Decay (D3)
+- Tickets launch with a **Donation Multiplier**.
+- The donation component decays over time until reaching the **Base Price**.
 
-### 4. Price Watchers & Alerts
-- Users must be able to set a "Target Price" for specific arena sections.
-- The system provides notifications when the current decayed price meets or falls below the user's target.
+### 4. Transactional Integrity
+- Every purchase must generate a unique `Purchase` object.
+- Purchases must be linked to the user's email for historical tracking in their vault.
 
-### 5. Transparency & Impact Tracking
-- The app must display a live counter of the total ethical impact (total donations processed).
-- Every ticket must clearly print the donation amount and the supported cause.
-
-### 6. Tax Compliance
-- The system generates receipts that separate the commercial "base price" from the "charitable donation" for tax-deductible purposes.
+### 5. AI Narrative Engine
+- Use Gemini API to describe real-world impact of the donation portions of ticket sales.

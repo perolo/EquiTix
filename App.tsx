@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Search, Globe, Music, MapPin, Heart, ChevronRight, Bell, Receipt, History, User, Mail, Lock, Key, X, AlertCircle, CheckCircle } from 'lucide-react';
+import { Search, Globe, Music, MapPin, Heart, ChevronRight, Bell, Receipt, History, User, Mail, Lock, Key, X, AlertCircle, CheckCircle, ShieldCheck, Ticket, LogOut } from 'lucide-react';
 import { ARTISTS, ARENAS, CONCERTS } from './constants';
-import { Artist, Arena, Concert, Watcher, PriceSnapshot, ArenaSection } from './types';
+import { Artist, Arena, Concert, Watcher, PriceSnapshot, ArenaSection, UserAccount, Purchase } from './types';
 import { calculateCurrentPrice, formatCurrency } from './utils/pricing';
 import { getImpactStory, generateReceiptSummary } from './services/geminiService';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, AreaChart, Area } from 'recharts';
@@ -42,7 +42,7 @@ const ArtistCard: React.FC<{ artist: Artist; onClick: () => void }> = ({ artist,
   </div>
 );
 
-const SectionPriceRow: React.FC<{ section: ArenaSection; concert: Concert; onWatch: (s: ArenaSection) => void }> = ({ section, concert, onWatch }) => {
+const SectionPriceRow: React.FC<{ section: ArenaSection; concert: Concert; onWatch: (s: ArenaSection) => void; onBuy: (s: ArenaSection) => void }> = ({ section, concert, onWatch, onBuy }) => {
   const price = calculateCurrentPrice(section.basePrice, concert);
   
   return (
@@ -62,7 +62,10 @@ const SectionPriceRow: React.FC<{ section: ArenaSection; concert: Concert; onWat
         >
           <Bell size={18} />
         </button>
-        <button className="px-4 py-2 bg-white text-black font-bold rounded-lg hover:bg-purple-500 hover:text-white transition-all">
+        <button 
+          onClick={() => onBuy(section)}
+          className="px-4 py-2 bg-white text-black font-bold rounded-lg hover:bg-purple-500 hover:text-white transition-all"
+        >
           Buy
         </button>
       </div>
@@ -72,10 +75,17 @@ const SectionPriceRow: React.FC<{ section: ArenaSection; concert: Concert; onWat
 
 // --- Auth Components ---
 
-const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void; onLogin: (email: string) => void }> = ({ isOpen, onClose, onLogin }) => {
+const AuthModal: React.FC<{ 
+  isOpen: boolean; 
+  onClose: () => void; 
+  onLogin: (user: UserAccount) => void;
+  users: UserAccount[];
+  setUsers: React.Dispatch<React.SetStateAction<UserAccount[]>>;
+}> = ({ isOpen, onClose, onLogin, users, setUsers }) => {
   const [mode, setMode] = useState<'login' | 'signup' | 'forgot'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
+  const [name, setName] = useState('');
   const [status, setStatus] = useState<{ type: 'success' | 'error', message: string } | null>(null);
 
   const generatePassword = () => {
@@ -92,19 +102,43 @@ const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void; onLogin: (emai
     setStatus(null);
 
     if (mode === 'login') {
-      // Simulate login
-      if (email.includes('@') && password.length >= 6) {
-        onLogin(email);
-        onClose();
+      const user = users.find(u => u.email === email && u.passwordHash === password);
+      if (user) {
+        if (!user.isActivated) {
+          setStatus({ type: 'error', message: 'Account not activated. Please wait for admin approval.' });
+        } else {
+          onLogin(user);
+          onClose();
+        }
       } else {
         setStatus({ type: 'error', message: 'Invalid credentials. Please check your email and password.' });
       }
     } else if (mode === 'signup') {
-      // Simulate activation email
-      setStatus({ type: 'success', message: `Activation email sent to ${email}. Please check your inbox to verify your account.` });
+      if (users.some(u => u.email === email)) {
+        setStatus({ type: 'error', message: 'A user with this email already exists.' });
+        return;
+      }
+      const newUser: UserAccount = {
+        email,
+        passwordHash: password,
+        name,
+        isActivated: false,
+        isAdmin: false,
+        joinedAt: new Date().toISOString()
+      };
+      setUsers([...users, newUser]);
+      setStatus({ type: 'success', message: `Account created for ${email}. Please wait for admin activation.` });
+      // Clear inputs
+      setEmail('');
+      setName('');
+      setPassword('');
     } else if (mode === 'forgot') {
-      // Simulate reset email
-      setStatus({ type: 'success', message: `Password reset instructions have been sent to ${email}.` });
+      const exists = users.some(u => u.email === email);
+      if (exists) {
+        setStatus({ type: 'success', message: `Password reset instructions have been sent to ${email}.` });
+      } else {
+        setStatus({ type: 'error', message: 'No account found with that email address.' });
+      }
     }
   };
 
@@ -135,6 +169,23 @@ const AuthModal: React.FC<{ isOpen: boolean; onClose: () => void; onLogin: (emai
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+          {mode === 'signup' && (
+            <div className="space-y-1">
+              <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider ml-1">Full Name</label>
+              <div className="relative">
+                <User className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-500" size={18} />
+                <input 
+                  type="text" 
+                  required
+                  className="w-full bg-white/5 border border-white/10 rounded-xl py-3 pl-12 pr-4 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+                  placeholder="John Doe"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </div>
+            </div>
+          )}
+
           <div className="space-y-1">
             <label className="text-xs font-semibold text-gray-500 uppercase tracking-wider ml-1">Email Address</label>
             <div className="relative">
@@ -208,14 +259,24 @@ export default function App() {
   const [selectedArtist, setSelectedArtist] = useState<Artist | null>(null);
   const [selectedConcert, setSelectedConcert] = useState<Concert | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [view, setView] = useState<'home' | 'details' | 'receipt'>('home');
+  const [view, setView] = useState<'home' | 'details' | 'profile' | 'admin'>('home');
   const [watchers, setWatchers] = useState<Watcher[]>([]);
   const [impactStory, setImpactStory] = useState<string>('');
-  const [receipt, setReceipt] = useState<string>('');
   
-  // Auth state
+  // Simulated User DB and Auth
+  const [users, setUsers] = useState<UserAccount[]>([
+    {
+      email: 'admin@example.com',
+      passwordHash: 'admin',
+      name: 'EquiTix Admin',
+      isActivated: true,
+      isAdmin: true,
+      joinedAt: new Date().toISOString()
+    }
+  ]);
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [currentUser, setCurrentUser] = useState<string | null>(null);
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
 
   const filteredArtists = useMemo(() => {
     return ARTISTS.filter(a => a.name.toLowerCase().includes(searchQuery.toLowerCase()));
@@ -236,6 +297,10 @@ export default function App() {
   };
 
   const handleWatch = (section: ArenaSection) => {
+    if (!currentUser) {
+      setIsAuthModalOpen(true);
+      return;
+    }
     if (!selectedConcert) return;
     const target = prompt(`Alert me when price for ${section.name} drops below:`, "500");
     if (target && !isNaN(Number(target))) {
@@ -251,12 +316,46 @@ export default function App() {
     }
   };
 
-  const handleLogin = (email: string) => {
-    setCurrentUser(email);
+  const handleBuy = (section: ArenaSection) => {
+    if (!currentUser) {
+      setIsAuthModalOpen(true);
+      return;
+    }
+    if (!selectedConcert) return;
+    
+    const artist = ARTISTS.find(a => a.id === selectedConcert.artistId);
+    const arena = ARENAS.find(a => a.id === selectedConcert.arenaId);
+    const price = calculateCurrentPrice(section.basePrice, selectedConcert);
+
+    const newPurchase: Purchase = {
+      id: `TIX-${Math.floor(Math.random() * 999999)}`,
+      userEmail: currentUser.email,
+      concertId: selectedConcert.id,
+      artistName: artist?.name || 'Unknown Artist',
+      arenaName: arena?.name || 'Unknown Arena',
+      sectionName: section.name,
+      totalPrice: price.total,
+      donationAmount: price.donation,
+      purchaseDate: new Date().toISOString(),
+      eventDate: selectedConcert.date
+    };
+
+    setPurchases([newPurchase, ...purchases]);
+    alert(`Purchase Successful! Your ticket to ${artist?.name} is confirmed.`);
+    setView('profile');
+  };
+
+  const toggleActivation = (email: string) => {
+    setUsers(users.map(u => u.email === email ? { ...u, isActivated: !u.isActivated } : u));
+  };
+
+  const handleLogin = (user: UserAccount) => {
+    setCurrentUser(user);
   };
 
   const handleLogout = () => {
     setCurrentUser(null);
+    setView('home');
   };
 
   // Pricing visualization data
@@ -271,7 +370,6 @@ export default function App() {
     for (let i = 0; i <= steps; i++) {
       const t = launch + i * interval;
       const daysUntilFloor = Math.round((floor - t) / (1000 * 60 * 60 * 24));
-      // Use first section as baseline
       const arena = ARENAS.find(a => a.id === selectedConcert.arenaId);
       const base = arena?.sections[0].basePrice || 100;
       
@@ -300,6 +398,8 @@ export default function App() {
         isOpen={isAuthModalOpen} 
         onClose={() => setIsAuthModalOpen(false)} 
         onLogin={handleLogin}
+        users={users}
+        setUsers={setUsers}
       />
 
       {/* Header */}
@@ -315,7 +415,7 @@ export default function App() {
             <input 
               type="text"
               placeholder="Search artists, cities, or arenas..."
-              className="w-full bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all"
+              className="w-full bg-white/5 border border-white/10 rounded-full py-2 pl-10 pr-4 focus:outline-none focus:ring-2 focus:ring-purple-500 transition-all text-sm"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
             />
@@ -323,18 +423,34 @@ export default function App() {
         </div>
 
         <div className="flex items-center gap-4">
-          <button className="text-gray-400 hover:text-white transition-colors hidden sm:block"><Globe size={20} /></button>
+          {currentUser?.isAdmin && (
+            <button 
+              onClick={() => setView('admin')}
+              className={`p-2 rounded-full transition-colors ${view === 'admin' ? 'bg-purple-600 text-white' : 'text-gray-400 hover:text-white'}`}
+            >
+              <ShieldCheck size={20} />
+            </button>
+          )}
           {currentUser ? (
             <div className="flex items-center gap-3">
-              <div className="text-right hidden sm:block">
-                <p className="text-[10px] uppercase font-bold text-purple-400">Member</p>
-                <p className="text-xs font-medium truncate max-w-[120px]">{currentUser}</p>
-              </div>
+              <button 
+                onClick={() => setView('profile')}
+                className={`flex items-center gap-3 p-1 pl-3 rounded-full transition-all border ${view === 'profile' ? 'bg-purple-600/20 border-purple-500' : 'bg-white/5 border-white/10 hover:border-white/20'}`}
+              >
+                <div className="text-right hidden sm:block">
+                  <p className="text-[10px] uppercase font-bold text-purple-400">Account</p>
+                  <p className="text-xs font-medium truncate max-w-[100px]">{currentUser.name}</p>
+                </div>
+                <div className="w-8 h-8 bg-purple-600/50 rounded-full flex items-center justify-center">
+                  <User size={16} />
+                </div>
+              </button>
               <button 
                 onClick={handleLogout}
-                className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/20 transition-all border border-white/10"
+                className="p-2 text-gray-400 hover:text-red-400 transition-colors"
+                title="Logout"
               >
-                <User size={20} />
+                <LogOut size={20} />
               </button>
             </div>
           ) : (
@@ -377,7 +493,6 @@ export default function App() {
                   Traditional ticketing rewards scalpers. <strong>EquiTix</strong> rewards humanity. 
                   Prices start high as a mandatory donation to the artist's chosen causes and decay daily. 
                   Scalpers can't profit because the "market price" is already captured by charities. 
-                  Buy when the price is right for you.
                 </p>
                 <div className="flex flex-wrap gap-4">
                   <div className="flex items-center gap-2 px-4 py-2 glass rounded-full text-sm text-green-400 border-green-500/20">
@@ -405,7 +520,6 @@ export default function App() {
             </button>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-              {/* Left Column: Artist Info & Tour Dates */}
               <div className="lg:col-span-1">
                 <div className="glass rounded-2xl p-6 mb-6">
                   <img src={selectedArtist.image} className="w-full h-48 object-cover rounded-xl mb-4" />
@@ -437,83 +551,36 @@ export default function App() {
                     })}
                   </div>
                 </div>
-
-                <div className="glass rounded-2xl p-6">
-                  <h4 className="font-semibold text-xs uppercase text-gray-500 mb-4 tracking-widest">Philanthropy</h4>
-                  {selectedArtist.charityCauses.map(cause => (
-                    <div key={cause.id} className="mb-4 last:mb-0">
-                      <div className="flex items-center gap-2 mb-1">
-                        <span className="text-xl">{cause.icon}</span>
-                        <span className="font-bold">{cause.name}</span>
-                      </div>
-                      <p className="text-xs text-gray-400">{cause.description}</p>
-                    </div>
-                  ))}
-                  {impactStory && (
-                    <div className="mt-6 p-4 bg-purple-900/20 rounded-xl border border-purple-500/20">
-                      <p className="text-xs italic text-purple-200">"{impactStory}"</p>
-                    </div>
-                  )}
-                </div>
               </div>
 
-              {/* Middle/Right: Arena & Pricing */}
               <div className="lg:col-span-2">
                 {!selectedConcert ? (
                   <div className="h-full glass rounded-3xl flex flex-col items-center justify-center p-12 text-center">
                     <MapPin size={48} className="text-gray-600 mb-4" />
                     <h3 className="text-xl font-bold mb-2">Select a city to view tickets</h3>
-                    <p className="text-gray-500 max-w-xs text-sm">Pick a stop on the {selectedArtist.name} World Tour to see dynamic donation pricing.</p>
                   </div>
                 ) : (
                   <div className="space-y-8">
-                    {/* Price Decay Chart */}
                     <div className="glass rounded-3xl p-8 border border-white/5">
                       <div className="flex items-center justify-between mb-8">
                         <div>
                           <h3 className="text-xl font-bold">Dynamic Donation Decay</h3>
                           <p className="text-xs text-gray-500">Wait for the drop, or secure your spot and make an impact today.</p>
                         </div>
-                        <div className="text-right">
-                          <span className="text-2xl font-black text-white">
-                            {formatCurrency(calculateCurrentPrice(
-                              ARENAS.find(a => a.id === selectedConcert.arenaId)?.sections[0].basePrice || 100, 
-                              selectedConcert
-                            ).total)}
-                          </span>
-                          <p className="text-[10px] text-pink-500 font-bold uppercase">Current Multiplier: ~{
-                            Math.round(calculateCurrentPrice(1, selectedConcert).donation / (ARENAS.find(a => a.id === selectedConcert.arenaId)?.sections[0].basePrice || 1))
-                          }x</p>
-                        </div>
                       </div>
                       <div className="h-64 w-full">
                         <ResponsiveContainer width="100%" height="100%">
                           <AreaChart data={pricingChartData}>
-                            <defs>
-                              <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="5%" stopColor="#8b5cf6" stopOpacity={0.3}/>
-                                <stop offset="95%" stopColor="#8b5cf6" stopOpacity={0}/>
-                              </linearGradient>
-                            </defs>
                             <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#333" />
                             <XAxis dataKey="name" stroke="#666" fontSize={10} />
-                            <YAxis stroke="#666" fontSize={10} tickFormatter={(val) => `$${val}`} />
-                            <Tooltip 
-                              contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }}
-                              itemStyle={{ color: '#fff' }}
-                            />
-                            <Area type="monotone" dataKey="total" stroke="#8b5cf6" fillOpacity={1} fill="url(#colorTotal)" strokeWidth={3} />
-                            <Area type="monotone" dataKey="donation" stroke="#ec4899" fillOpacity={0} strokeWidth={1} strokeDasharray="5 5" />
+                            <YAxis stroke="#666" fontSize={10} />
+                            <Tooltip contentStyle={{ backgroundColor: '#1a1a1a', border: '1px solid #333' }} />
+                            <Area type="monotone" dataKey="total" stroke="#8b5cf6" fill="#8b5cf6" fillOpacity={0.1} strokeWidth={3} />
                           </AreaChart>
                         </ResponsiveContainer>
                       </div>
-                      <div className="flex justify-between mt-4 text-[10px] text-gray-500 uppercase tracking-widest font-medium">
-                        <span>Launch (Highest Donation)</span>
-                        <span>Show Day (Base Price Only)</span>
-                      </div>
                     </div>
 
-                    {/* Section Selector */}
                     <div className="glass rounded-3xl p-8 border border-white/5">
                       <h3 className="text-xl font-bold mb-6">Arena Sections</h3>
                       <div className="grid grid-cols-1 gap-4">
@@ -521,60 +588,155 @@ export default function App() {
                           <SectionPriceRow 
                             key={section.id} 
                             section={section} 
-                            concert={selectedConcert as Concert}
+                            concert={selectedConcert}
                             onWatch={handleWatch}
+                            onBuy={handleBuy}
                           />
                         ))}
                       </div>
                     </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
 
-                    {/* Active Watchers */}
-                    {watchers.filter(w => w.concertId === selectedConcert.id).length > 0 && (
-                      <div className="glass rounded-3xl p-8 border border-blue-500/20">
-                        <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
-                          <Bell size={20} className="text-blue-400" /> Your Price Alerts
-                        </h3>
-                        <div className="flex flex-wrap gap-4">
-                          {watchers.filter(w => w.concertId === selectedConcert.id).map(w => (
-                            <div key={w.id} className="bg-white/5 rounded-full px-4 py-2 text-sm border border-white/10 flex items-center gap-4">
-                              <span>Target: <strong className="text-white">{formatCurrency(w.targetPrice)}</strong></span>
-                              <button 
-                                onClick={() => setWatchers(watchers.filter(x => x.id !== w.id))}
-                                className="text-gray-500 hover:text-red-400"
-                              >
-                                &times;
+        {view === 'profile' && currentUser && (
+          <div className="animate-in slide-in-from-right-4 duration-500">
+            <h2 className="text-3xl font-bold mb-8">Account Dashboard</h2>
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-8">
+              <div className="lg:col-span-1 space-y-6">
+                <div className="glass rounded-2xl p-6">
+                  <div className="w-20 h-20 bg-purple-600 rounded-full flex items-center justify-center mx-auto mb-4 text-3xl font-bold">
+                    {currentUser.name.charAt(0)}
+                  </div>
+                  <h3 className="text-xl font-bold text-center">{currentUser.name}</h3>
+                  <p className="text-center text-gray-400 text-sm mb-6">{currentUser.email}</p>
+                  <div className="space-y-4 pt-6 border-t border-white/5">
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Member Since</span>
+                      <span className="font-medium">{new Date(currentUser.joinedAt).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex justify-between text-sm">
+                      <span className="text-gray-500">Tickets Owned</span>
+                      <span className="font-medium">{purchases.filter(p => p.userEmail === currentUser.email).length}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="lg:col-span-3 space-y-8">
+                <section>
+                  <h4 className="text-xl font-bold mb-6 flex items-center gap-2">
+                    <Ticket className="text-purple-500" /> Your Ticket Vault
+                  </h4>
+                  {purchases.filter(p => p.userEmail === currentUser.email).length === 0 ? (
+                    <div className="glass rounded-2xl p-12 text-center border border-dashed border-white/10">
+                      <p className="text-gray-500">No tickets purchased yet. Explore tours to start your ethical journey.</p>
+                      <button onClick={() => setView('home')} className="mt-4 px-6 py-2 bg-white/5 rounded-full text-sm font-bold border border-white/10 hover:bg-white/10">Browse Artists</button>
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-4">
+                      {purchases.filter(p => p.userEmail === currentUser.email).map(p => (
+                        <div key={p.id} className="glass rounded-2xl p-6 border border-white/5 hover:border-purple-500/30 transition-all">
+                          <div className="flex flex-col md:flex-row justify-between gap-6">
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-2">
+                                <span className="text-[10px] bg-purple-600 px-2 py-0.5 rounded font-bold uppercase">{p.id}</span>
+                                <span className="text-xs text-gray-500">{new Date(p.purchaseDate).toLocaleDateString()}</span>
+                              </div>
+                              <h5 className="text-2xl font-bold">{p.artistName}</h5>
+                              <p className="text-gray-400 flex items-center gap-1 mt-1">
+                                <MapPin size={14} /> {p.arenaName} • {p.sectionName}
+                              </p>
+                            </div>
+                            <div className="flex flex-col md:items-end justify-center">
+                              <p className="text-2xl font-black">{formatCurrency(p.totalPrice)}</p>
+                              <p className="text-xs text-pink-400 font-bold uppercase">Incl. {formatCurrency(p.donationAmount)} donation</p>
+                              <button className="mt-3 flex items-center gap-2 text-xs font-bold text-blue-400 hover:text-blue-300">
+                                <Receipt size={14} /> Download Tax Receipt
                               </button>
                             </div>
-                          ))}
+                          </div>
                         </div>
-                      </div>
-                    )}
-                  </div>
-                )
-              }
+                      ))}
+                    </div>
+                  )}
+                </section>
               </div>
+            </div>
+          </div>
+        )}
+
+        {view === 'admin' && currentUser?.isAdmin && (
+          <div className="animate-in slide-in-from-top-4 duration-500">
+            <h2 className="text-3xl font-bold mb-8 flex items-center gap-3">
+              <ShieldCheck className="text-purple-500" /> Admin Command Center
+            </h2>
+            <div className="glass rounded-3xl overflow-hidden border border-white/10">
+              <table className="w-full text-left border-collapse">
+                <thead className="bg-white/5 border-b border-white/10">
+                  <tr>
+                    <th className="p-4 text-xs font-bold uppercase text-gray-500 tracking-widest">User Details</th>
+                    <th className="p-4 text-xs font-bold uppercase text-gray-500 tracking-widest">Joined Date</th>
+                    <th className="p-4 text-xs font-bold uppercase text-gray-500 tracking-widest">Status</th>
+                    <th className="p-4 text-xs font-bold uppercase text-gray-500 tracking-widest text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-white/5">
+                  {users.filter(u => !u.isAdmin).map(u => (
+                    <tr key={u.email} className="hover:bg-white/[0.02] transition-colors">
+                      <td className="p-4">
+                        <p className="font-bold">{u.name}</p>
+                        <p className="text-xs text-gray-500">{u.email}</p>
+                      </td>
+                      <td className="p-4 text-sm text-gray-400">
+                        {new Date(u.joinedAt).toLocaleDateString()}
+                      </td>
+                      <td className="p-4">
+                        <span className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase ${u.isActivated ? 'bg-green-500/20 text-green-400 border border-green-500/20' : 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/20'}`}>
+                          {u.isActivated ? 'Active' : 'Pending Activation'}
+                        </span>
+                      </td>
+                      <td className="p-4 text-right">
+                        <button 
+                          onClick={() => toggleActivation(u.email)}
+                          className={`px-4 py-2 rounded-lg text-xs font-bold transition-all ${u.isActivated ? 'bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500 hover:text-white' : 'bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500 hover:text-white'}`}
+                        >
+                          {u.isActivated ? 'Deactivate' : 'Activate User'}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {users.filter(u => !u.isAdmin).length === 0 && (
+                    <tr>
+                      <td colSpan={4} className="p-12 text-center text-gray-500 italic">No registered users found.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
             </div>
           </div>
         )}
       </main>
 
-      {/* Persistent Mobile Bottom Nav */}
+      {/* Mobile Bottom Nav */}
       <nav className="fixed bottom-0 left-0 right-0 glass border-t border-white/10 px-8 py-4 md:hidden flex justify-around">
-        <button onClick={() => setView('home')} className="flex flex-col items-center gap-1 text-purple-500">
+        <button onClick={() => setView('home')} className={`flex flex-col items-center gap-1 ${view === 'home' ? 'text-purple-500' : 'text-gray-500'}`}>
           <Search size={20} />
           <span className="text-[10px] font-bold uppercase">Explore</span>
         </button>
-        <button className="flex flex-col items-center gap-1 text-gray-500">
+        <button onClick={() => currentUser ? setView('profile') : setIsAuthModalOpen(true)} className={`flex flex-col items-center gap-1 ${view === 'profile' ? 'text-purple-500' : 'text-gray-500'}`}>
           <History size={20} />
           <span className="text-[10px] font-bold uppercase">Activity</span>
         </button>
-        <button className="flex flex-col items-center gap-1 text-gray-500">
-          <div className="relative">
-            <Bell size={20} />
-            {watchers.length > 0 && <span className="absolute -top-1 -right-1 w-3 h-3 bg-red-500 rounded-full border-2 border-black"></span>}
-          </div>
-          <span className="text-[10px] font-bold uppercase">Alerts</span>
-        </button>
+        {currentUser?.isAdmin && (
+          <button onClick={() => setView('admin')} className={`flex flex-col items-center gap-1 ${view === 'admin' ? 'text-purple-500' : 'text-gray-500'}`}>
+            <ShieldCheck size={20} />
+            <span className="text-[10px] font-bold uppercase">Admin</span>
+          </button>
+        )}
       </nav>
     </div>
   );

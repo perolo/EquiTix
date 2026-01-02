@@ -1,20 +1,36 @@
+# Evaluating AI Studio app
+
+# EquiTix - Ethical Concert Ticketing Platform
+
+EquiTix is a revolutionary ticketing solution designed to eliminate the secondary black market (scalping) through a model of **Dynamic Donation Decay (D3)**.
+
 <div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
+<img width="757" height="1037" alt="image" src="https://github.com/user-attachments/assets/1ace3e89-99af-4635-bb79-fe99b7c0c9c6" />
 </div>
 
-# Run and deploy your AI Studio app
 
-This contains everything you need to run your app locally.
+## Core Concept
+Instead of allowing scalpers to capture the "market value" of popular tickets, EquiTix sets the initial price high (Base Price + Donation). This donation decays daily as the concert date approaches. 
+- **Wait for the drop:** Fans can wait until the price matches their budget.
+- **Support a cause:** Fans who buy early pay more, but that premium is a direct, tax-deductible donation to the artist's chosen charities.
+- **No Profit for Scalpers:** Since the initial price is already at the "scalper level," there is no margin for illegal reselling.
 
-View your app in AI Studio: https://ai.studio/apps/drive/1OoVOPgoAXm3QgqjHG5r62IDmE6A6-y_N
+## Key Features
+- **Dynamic Pricing Engine:** Linear decay logic based on concert launch and show dates.
+- **User Profiles:** Secure dashboard for tracking purchase history and downloading tax receipts.
+- **Admin Command Center:** Manual user activation logic to prevent platform abuse.
+- **AI-Enhanced UX:** Gemini API integration for generating impact stories and receipt summaries.
+- **Live Impact Tracker:** Real-time global counter of total funds raised for philanthropy.
 
-## Run Locally
+## Technology Stack
+- **Frontend:** React 19, Tailwind CSS, Recharts.
+- **Icons:** Lucide-React.
+- **AI:** Google Gemini SDK (@google/genai).
 
-**Prerequisites:**  Node.js
+## Getting Started
+1. **Initial Login:** Use `admin@example.com` / `admin` to access administrative features.
+2. **Registration:** New users must sign up and be activated by the admin before they can log in.
+3. **Purchase:** Navigate to an artist tour, select a city, and buy a ticket to see it reflected in your profile.
 
-
-1. Install dependencies:
-   `npm install`
-2. Set the `GEMINI_API_KEY` in [.env.local](.env.local) to your Gemini API key
-3. Run the app:
-   `npm run dev`
+---
+*EquiTix - Turning scalper profits into charitable impact.*

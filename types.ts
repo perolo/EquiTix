@@ -54,3 +54,25 @@ export interface Watcher {
   targetPrice: number;
   createdAt: string;
 }
+
+export interface UserAccount {
+  email: string;
+  passwordHash: string;
+  name: string;
+  isActivated: boolean;
+  isAdmin: boolean;
+  joinedAt: string;
+}
+
+export interface Purchase {
+  id: string;
+  userEmail: string;
+  concertId: string;
+  artistName: string;
+  arenaName: string;
+  sectionName: string;
+  totalPrice: number;
+  donationAmount: number;
+  purchaseDate: string;
+  eventDate: string;
+}
